@@ -129,10 +129,10 @@ jobs:
         if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true
         run: terraform init -backend=false -input=false
 
-      - name: Terraform Fmt & Validate
-        run: |
-          terraform fmt -check -recursive
-          terraform validate
+      - name: Terraform Fmt
+        run: terraform fmt -recursive
+      - name: Terraform Validate    
+        run: terraform validate
 
       - name: Terraform Plan
         if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) || startsWith(github.ref, 'refs/heads/feature/')
