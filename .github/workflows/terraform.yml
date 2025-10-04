@@ -86,7 +86,7 @@ jobs:
       # Skip AWS creds on forked PRs (secrets aren't available)
       - name: Configure AWS credentials (internal branches & pushes)
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
