@@ -42,7 +42,7 @@
 #       with:
 #         cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-name: Terraform CI/CD (diagnostic)
+name: Terraform CI/CD
 
 on:
   pull_request:
@@ -83,59 +83,24 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      # --- Diagnostics: show event/fork and verify secrets are available ---
-      - name: Diagnose environment
-        env:
-          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
-          HAS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
-          HAS_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}
-          HAS_REGION: ${{ secrets.AWS_REGION != '' }}
-        run: |
-          echo "event_name=${{ github.event_name }}"
-          echo "ref=${{ github.ref }}"
-          echo "is_fork=${IS_FORK}"
-          echo "has_AWS_ACCESS_KEY_ID=${HAS_KEY}"
-          echo "has_AWS_SECRET_ACCESS_KEY=${HAS_SECRET}"
-          echo "has_AWS_REGION=${HAS_REGION}"
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${IS_FORK}" = "true" ]; then
-            echo "::notice ::This is a PR from a fork. GitHub will not provide secrets. AWS-backed steps will be skipped."
-          else
-            if [ "${HAS_KEY}" != "true" ] || [ "${HAS_SECRET}" != "true" ] || [ "${HAS_REGION}" != "true" ]; then
-              echo "::error ::One or more required secrets are missing. Add AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION to repo secrets."
-              exit 1
-            fi
-          fi
-
-      # Configure creds unless it's a forked PR (no secrets available by design)
       - name: Configure AWS credentials
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ secrets.AWS_REGION }}
 
-      # Prove creds actually loaded
-      - name: Verify AWS identity
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
-        run: aws sts get-caller-identity
-
-      # Init: use backend when creds exist; otherwise run without backend for forked PRs
-      - name: Terraform Init (with backend)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
-        run: terraform init -input=false
-
       - name: Terraform Init
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true
-        run: terraform init -backend=false -input=false
+        run: terraform init -input=false
 
       - name: Terraform Fmt
         run: terraform fmt -recursive
-      - name: Terraform Validate    
+
+      - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan
-        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) || startsWith(github.ref, 'refs/heads/feature/')
+        if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/feature/')
         run: terraform plan -input=false -out=tfplan.out
 
       - name: Terraform Apply
