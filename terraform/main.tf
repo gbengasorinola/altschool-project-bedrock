@@ -15,3 +15,5 @@ module "eks" {
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
 }
+
+# a comment line to test changes
