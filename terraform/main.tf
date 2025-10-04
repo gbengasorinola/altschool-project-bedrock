@@ -16,4 +16,6 @@ module "eks" {
   private_subnets = module.vpc.private_subnets
 }
 
-# this is a comment
+locals {
+  test_flag = "ci-test"   # harmless addition
+}
