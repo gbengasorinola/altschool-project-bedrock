@@ -42,9 +42,14 @@
 #       with:
 #         cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-name: 'Terraform CI/CD Pipeline'
+name: Terraform CI/CD (diagnostic)
 
 on:
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - "terraform/**"
+      - ".github/workflows/terraform.yml"
   push:
     branches:
       - "main"
@@ -52,12 +57,7 @@ on:
     paths:
       - "terraform/**"
       - ".github/workflows/terraform.yml"
-  pull_request:
-    branches: ["main"]
-    paths:
-      - "terraform/**"
-      - ".github/workflows/terraform.yml"
-  workflow_dispatch: {} 
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -66,58 +66,78 @@ env:
   TF_VERSION: "1.13.3"
   WORKING_DIR: "terraform"
 
-concurrency:
-  group: terraform-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   terraform:
-    name: 'Terraform Infrastructure Deployment'
     runs-on: ubuntu-latest
-    environment: production
-
-    # Use the Bash shell regardless whether the GitHub Actions runner is ubuntu-latest, macos-latest, or windows-latest
     defaults:
       run:
         shell: bash
-        working-directory: ./terraform
+        working-directory: ${{ env.WORKING_DIR }}
 
     steps:
-    # Checkout the repository to the GitHub Actions runner
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    # Install the latest version of Terraform CLI and configure the Terraform CLI configuration file with a Terraform Cloud user API token
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: eu-west-2
+      # --- Diagnostics: show event/fork and verify secrets are available ---
+      - name: Diagnose environment
+        env:
+          IS_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork }}
+          HAS_KEY: ${{ secrets.AWS_ACCESS_KEY_ID != '' }}
+          HAS_SECRET: ${{ secrets.AWS_SECRET_ACCESS_KEY != '' }}
+          HAS_REGION: ${{ secrets.AWS_REGION != '' }}
+        run: |
+          echo "event_name=${{ github.event_name }}"
+          echo "ref=${{ github.ref }}"
+          echo "is_fork=${IS_FORK}"
+          echo "has_AWS_ACCESS_KEY_ID=${HAS_KEY}"
+          echo "has_AWS_SECRET_ACCESS_KEY=${HAS_SECRET}"
+          echo "has_AWS_REGION=${HAS_REGION}"
+          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${IS_FORK}" = "true" ]; then
+            echo "::notice ::This is a PR from a fork. GitHub will not provide secrets. AWS-backed steps will be skipped."
+          else
+            if [ "${HAS_KEY}" != "true" ] || [ "${HAS_SECRET}" != "true" ] || [ "${HAS_REGION}" != "true" ]; then
+              echo "::error ::One or more required secrets are missing. Add AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION to repo secrets."
+              exit 1
+            fi
+          fi
 
-    # Initialize a new or existing Terraform working directory by creating initial files, loading any remote state, downloading modules, etc.
-    - name: Terraform Init
-      run: terraform init -input=false
+      # Configure creds unless it's a forked PR (no secrets available by design)
+      - name: Configure AWS credentials
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
 
-    # Checks that all Terraform configuration files adhere to a canonical format
-    - name: Terraform Format
-      run: terraform fmt -check
+      # Prove creds actually loaded
+      - name: Verify AWS identity
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        run: aws sts get-caller-identity
 
-    - name: Terraform Validate
-      run: terraform validate
+      # Init: use backend when creds exist; otherwise run without backend for forked PRs
+      - name: Terraform Init (with backend)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        run: terraform init -input=false
 
-    # Generates an execution plan for Terraform
-    - name: Terraform Plan
-      if: github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/feature/')
-      run: terraform plan -out=tfplan.out
+      - name: Terraform Init
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == true
+        run: terraform init -backend=false -input=false
 
-      # On push to "main", build or change infrastructure according to Terraform configuration files
-      # Note: It is recommended to set up a required "strict" status check in your repository for "Terraform Cloud". See the documentation on "strict" required status checks for more information: https://help.github.com/en/github/administering-a-repository/types-of-required-status-checks
-    - name: Terraform Apply
-      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      run: terraform apply -auto-approve -input=false
+      - name: Terraform Fmt & Validate
+        run: |
+          terraform fmt -check -recursive
+          terraform validate
+
+      - name: Terraform Plan
+        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) || startsWith(github.ref, 'refs/heads/feature/')
+        run: terraform plan -input=false -out=tfplan.out
+
+      - name: Terraform Apply
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: terraform apply -input=false -auto-approve
