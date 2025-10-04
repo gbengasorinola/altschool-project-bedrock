@@ -7,7 +7,7 @@ provider "aws" {
 }
 
 module "vpc" {
-  source = "terraform-aws-modules/vpc/aws"
+  source  = "terraform-aws-modules/vpc/aws"
   version = "5.1.2"
 
   name = "${var.project}-vpc"
@@ -21,8 +21,8 @@ module "vpc" {
   single_nat_gateway = true
 
   tags = {
-    Project   = var.project
-    Owner = "DevOps"
+    Project = var.project
+    Owner   = "DevOps"
   }
-  
+
 }

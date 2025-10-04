@@ -5,7 +5,7 @@ terraform {
     region         = "eu-west-2"
     dynamodb_table = "altschool-project-bedrock-terraform-locks"
     encrypt        = true
-    
+
   }
 }
 
