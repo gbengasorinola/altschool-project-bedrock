@@ -16,6 +16,7 @@ module "eks" {
   private_subnets = module.vpc.private_subnets
 }
 
-locals {
-  test_flag = "ci-test"   # harmless addition
+tags = {
+  Project = "InnovateMart"
+  Env     = "CI-Test"   # changed from "Dev" or "Test" just for pipeline check
 }
