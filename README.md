@@ -593,6 +593,8 @@ I accessed the application using the LoadBalancer URL in my web browser.
 
 This is the URL: http://a3bc17fe477f8410a89525138bf3fb73-1497101076.eu-west-2.elb.amazonaws.com/
 
+![Alt text](https://github.com/gbengasorinola/altschool-project-bedrock/blob/main/Screen%20Shot%202025-10-05%20at%202.49.12%20AM.png)
+
 ---
 
 ## Confirm Pod Status, Service & Load Balancer Mapping, and Deployment Rollout
@@ -858,10 +860,15 @@ I created an A record in the Route 53 hosted zone to point to the ALB DNS name u
 - **Alias**: Yes
 - **Alias Target**: Selected the ALB DNS name from the dropdown
 
+![Alt text](https://github.com/gbengasorinola/altschool-project-bedrock/blob/main/Screen%20Shot%202025-10-05%20at%202.20.08%20AM.png)
+
 ### Create a TLS Certificate using AWS Certificate Manager (ACM)
 I requested a public certificate for `innovatemart.duckdns.org` in ACM in the `eu-west-2` region and validated it using DNS validation.
 
-I was unable to proceed with the TLS setup as DuckDNS does not support adding the required CNAME records for DNS validation in Route 53.
+![Alt text](https://github.com/gbengasorinola/altschool-project-bedrock/blob/main/Screen%20Shot%202025-10-04%20at%2010.31.51%20PM.png)
+
+**Note**: I was unable to proceed with the TLS setup as DuckDNS does not support adding the required CNAME records for DNS validation in Route 53.
+
 
 ### Update Ingress Resource with TLS
 Once the certificate is issued, I updated the Ingress resource to use the TLS certificate:
@@ -897,6 +904,8 @@ I applied the updated Ingress manifest:
 kubectl apply -f ui-ingress.yaml
 ```
 This configures the Ingress to use HTTPS with the specified TLS certificate.
+
+![Alt text](https://github.com/gbengasorinola/altschool-project-bedrock/blob/main/Screen%20Shot%202025-10-04%20at%2010.29.20%20PM.png)
 
 ## Conclusion
 This project successfully deployed the InnovateMart e-commerce platform on AWS EKS with advanced networking and security features. The application is accessible via a secure HTTPS endpoint, and the infrastructure is managed using Terraform and GitHub Actions for CI/CD.
